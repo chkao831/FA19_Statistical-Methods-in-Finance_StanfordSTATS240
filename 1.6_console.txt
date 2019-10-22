@@ -1,0 +1,32 @@
+> summary(PFE_mod1)
+
+Call:
+lm(formula = PFE ~ I(rownames(d) < 897))
+
+Residuals:
+      Min        1Q    Median        3Q       Max 
+-0.080845 -0.010605  0.000065  0.010378  0.058554 
+
+Coefficients:
+                           Estimate Std. Error t value Pr(>|t|)
+(Intercept)              -0.0007156  0.0015596  -0.459    0.646
+I(rownames(d) < 897)TRUE  0.0021600  0.0016314   1.324    0.186
+
+Residual standard error: 0.01665 on 1322 degrees of freedom
+Multiple R-squared:  0.001324,	Adjusted R-squared:  0.0005688 
+F-statistic: 1.753 on 1 and 1322 DF,  p-value: 0.1857
+
+> #95% confidence interval for miu1
+> cat(CI_lower,CI_upper)
+-0.001102871 0.005422787
+> #95% confidence interval for miu2
+> cat(CI_lower,CI_upper)
+-0.005422787 0.001102871
+
+> z <- (miu1_estimate-miu2_estimate)/(sigma/sqrt(n))
+> alpha = .05 
+> z.half.alpha = qnorm(1-alpha/2)
+> c(-z.half.alpha, z.half.alpha)
+[1] -1.959964  1.959964
+> cat(z)
+5.921012
