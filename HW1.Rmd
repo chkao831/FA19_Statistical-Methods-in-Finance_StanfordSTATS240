@@ -1,0 +1,727 @@
+Author: Chih-Hsuan (Carolyn) Kao;
+Date: Oct 21, 2019
+Title: STATS 240 HW1 Autumn 2019-20
+
+1.6(a) Time Series Plot
+```{r}
+#plot formatting
+par(mfrow=c(1,1))
+d = read.table("w_logret_3stocks.txt",
+               sep="\t",
+               header = TRUE,
+               fill=FALSE, 
+               strip.white=TRUE)
+d$Date <- as.Date(d$Date,"%m/%d/%y")
+
+#plot time series data for 3 stocks
+Citi = ts(d[,3],start = c(1982, 1), frequency = 52, end = c(2007, 1))
+PFE = ts(d[,4],start = c(1982, 1),frequency = 52, end = c(2007, 1))
+GM = ts(d[,5],start = c(1982, 1),frequency = 52, end = c(2007, 1))
+ts.plot(Citi, PFE, GM, gpars = list(col = c("black", "red", "blue")))
+legend(2004, -0.08, legend=c("Citi", "PFE", "GM"),
+       col=c("black", "red", "blue"), lty=1:1, cex=0.6)
+title('Weekly Log Returns of Pfizer Stock')
+```
+```{r}
+# Check iid assumption
+Citi = ts(d[,3],start = c(1999, 1), frequency = 52, end = c(2000, 1))
+PFE = ts(d[,4],start = c(1999, 1),frequency = 52, end = c(2000, 1))
+GM = ts(d[,5],start = c(1999, 1),frequency = 52, end = c(2000, 1))
+ts.plot(Citi, PFE, GM, gpars = list(col = c("black", "red", "blue")))
+legend(2004, -0.08, legend=c("Citi", "PFE", "GM"),
+       col=c("black", "red", "blue"), lty=1:1, cex=0.6)
+title('Weekly Log Returns of Pfizer Stock (Year 1999)')
+abline(v = 1999.3)
+```
+
+1.6(b) Fit Regression to PFE data
+```{r}
+Citi = d[,3]
+PFE = d[,4]
+GM = d[,5]
+PFE_mod1 <- lm(PFE ~ I(rownames(d) < 897)) #indicator t<t0 where t0=897
+summary(PFE_mod1)
+CI_lower <- summary(PFE_mod1)$coefficients[2,1] - 2* summary(PFE_mod1)$coefficients[2,2]
+CI_upper <- summary(PFE_mod1)$coefficients[2,1] + 2* summary(PFE_mod1)$coefficients[2,2]
+#95% confidence interval for miu1
+cat(CI_lower,CI_upper)
+```
+```{r}
+PFE_mod2 <- lm(PFE ~ I(rownames(d) >= 897)) #indicator t>=t0
+CI_lower <- summary(PFE_mod2)$coefficients[2,1] - 2* summary(PFE_mod2)$coefficients[2,2]
+CI_upper <- summary(PFE_mod2)$coefficients[2,1] + 2* summary(PFE_mod2)$coefficients[2,2]
+#95% confidence interval for miu2
+cat(CI_lower,CI_upper)
+```
+```{r}
+# Similarly, for Citi and GM (optional)
+citi_mod1 <- lm(Citi ~ I(rownames(d) < 897))
+citi_mod2 <- lm(Citi ~ I(rownames(d) >= 897))
+GM_mod1 <- lm(GM ~ I(rownames(d) < 897))
+GM_mod2 <- lm(d[,5] ~ I(rownames(d) >= 897))
+```
+
+1.6(c) Test Null Hypothesis: miu1 = miu2 for Pfizer stock
+```{r}
+miu1_estimate = summary(PFE_mod1)$coefficients[2,1]
+miu2_estimate = summary(PFE_mod2)$coefficients[2,1]
+#standard error
+sigma = summary(PFE_mod1)$coefficients[2,2]
+n = length(d)
+#z score
+z <- (miu1_estimate-miu2_estimate)/(sigma/sqrt(n))
+alpha = .05 
+z.half.alpha = qnorm(1-alpha/2)
+c(-z.half.alpha, z.half.alpha)
+cat(z)
+```
+2.3 PCA--Principle Components Analysis
+```{r}
+#retdata contains the daily log returns of 12 stocks over time
+retdata <-read.table("d_logret_12stocks.txt", header=TRUE)
+attach(retdata)
+X <- cbind(aapl,adbe,adp,amd,dell,gtw,hp,ibm,msft,orcl,sunw,yhoo)
+summary(X)
+cor(X)
+cov(X)
+```
+```{r}
+#plot formatting 2 by 2
+par(mfrow=c(2,2))
+
+# 2.3 (b) Correlation
+#this performs a principle components analysis on X
+#calculation uses the correlation matrix
+pca_corr = princomp(X,cor = TRUE)
+summary(pca_corr)
+# Eigenvalues using correlation matrix
+eig_corr <- (pca_corr$sdev)^2
+cat(eig_corr)
+cat("\n")
+
+# 2.3 (a) Covariance
+#this performs a principle components analysis on X
+#calculation uses the covariance matrix
+pca_cov = princomp(X, cor = FALSE)
+summary(pca_cov)
+eig_cov <- (pca_cov$sdev)^2
+cat(eig_cov)
+```
+```{r}
+plot(pca_corr)
+
+```
+```{r}
+screeplot(pca_corr,type="line",main="Scree Plot CORR")
+```
+
+```{r}
+plot(pca_cov)
+
+```
+```{r}
+screeplot(pca_cov,type="line",main="Scree Plot COV")
+```
+```{r}
+#factor loadings
+pca_corr$loadings
+pca_cov$loadings
+```
+3.6
+```{r}
+#create stock table from data: this file contains monthly rate of ten stocks from Jan 1994 to Dec 2016
+stock = read.table("m_logret_10stocks.txt",
+               sep="\t",
+               header = TRUE,
+               fill=FALSE, 
+               strip.white=TRUE)
+stock <- stock[2:length(stock)] #strip out date since unnecessary
+stock <- stock[-c(157,158,159), ] #strip out blank last rows
+
+#create sp500ret table from data: this file contains the monthly returns of market (S&P500) index 
+#and the monthly rates of the 3-month US T-bill of Federal Reserve (risk-free)
+sp500ret = read.table("m_sp500ret_3mtcm.txt",
+                   skip = 1,
+                   sep="\t",
+                   header = TRUE,
+                   fill=FALSE, 
+                   strip.white=TRUE)
+sp500ret$X3mTCM <- sp500ret$X3mTCM/1200 #scale the risk free
+#calculate the risk premium (Rm - Rf)
+sp500ret$risk_premium <- sp500ret$sp500 - sp500ret$X3mTCM
+```
+
+```{r}
+# 3.6 (a) alpha, beta, sharpe, traynor CI
+alpha = .05 
+z.half.alpha = qnorm(1-alpha/2)
+#plot format 1by1
+par(mfrow=c(1,1))
+#plot the first stock AAPL (x-axis is market risk premium; y-axis is stock risk premium)
+plot(sp500ret$risk_premium,stock$AAPL-sp500ret$X3mTCM,main="Linear Regression_AAPL",
+     xlab="Market Risk Premium", ylab="AAPL Risk Premium")
+#do regression: E(Ri) - Rf = beta*[E(Rm)-Rf] + error
+stockpremium <- (stock$AAPL - sp500ret$X3mTCM)
+AAPL_model <- lm(stockpremium~sp500ret$risk_premium)
+abline(AAPL_model,col=2,lwd=3)
+
+
+```
+```{r}
+summary(AAPL_model)
+```
+```{r}
+#sharpe and treynor
+sharpe = mean(stockpremium) / sqrt(var(stockpremium))
+sharpe_CI_lower = sharpe-z.half.alpha*sqrt((1+(1/2)*sharpe**2)/156)
+sharpe_CI_upper = sharpe+z.half.alpha*sqrt((1+(1/2)*sharpe**2)/156)
+cat("sharpe 95% CI for AAPL: ",sharpe_CI_lower,sharpe_CI_upper)
+cat("\n")
+treynor = mean(stockpremium)/summary(AAPL_model)$coefficients[2,1]
+treynor_CI_lower = treynor-z.half.alpha*sqrt((1+(1/2)*treynor**2)/156)
+treynor_CI_upper = treynor+z.half.alpha*sqrt((1+(1/2)*treynor**2)/156)
+cat("treynor 95% CI for AAPL: ",treynor_CI_lower,treynor_CI_upper)
+#coefficients[1,1] is error (alpha) term estimate; [1,2] is error term std error
+#coefficients[2,1] is beta terms estimate; [2,2] is beta std error
+#construct 95% CI (2 standard deviations away)
+alpha_CI_lower <- summary(AAPL_model)$coefficients[1,1] - 2* summary(AAPL_model)$coefficients[1,2]
+alpha_CI_upper <- summary(AAPL_model)$coefficients[1,1] + 2* summary(AAPL_model)$coefficients[1,2]
+beta_CI_lower <- summary(AAPL_model)$coefficients[2,1] - 2* summary(AAPL_model)$coefficients[2,2]
+beta_CI_upper <- summary(AAPL_model)$coefficients[2,1] + 2* summary(AAPL_model)$coefficients[2,2]
+cat("\n")
+cat("95% CI of alpha for AAPL: ",alpha_CI_lower,alpha_CI_upper)
+cat("\n")
+cat("95% CI of beta for AAPL: ",beta_CI_lower,beta_CI_upper)
+```
+```{r}
+stockpremium <- (stock$ADBE - sp500ret$X3mTCM)
+ADBE_model <- lm(stockpremium~sp500ret$risk_premium)
+sharpe = mean(stockpremium) / sqrt(var(stockpremium))
+sharpe_CI_lower = sharpe-z.half.alpha*sqrt((1+(1/2)*sharpe**2)/156)
+sharpe_CI_upper = sharpe+z.half.alpha*sqrt((1+(1/2)*sharpe**2)/156)
+cat("sharpe 95% CI for ADBE: ",sharpe_CI_lower,sharpe_CI_upper)
+cat("\n")
+treynor = mean(stockpremium)/summary(ADBE_model)$coefficients[2,1]
+treynor_CI_lower = treynor-z.half.alpha*sqrt((1+(1/2)*treynor**2)/156)
+treynor_CI_upper = treynor+z.half.alpha*sqrt((1+(1/2)*treynor**2)/156)
+cat("treynor 95% CI for ADBE: ",treynor_CI_lower,treynor_CI_upper)
+alpha_CI_lower <- summary(ADBE_model)$coefficients[1,1] - 2* summary(ADBE_model)$coefficients[1,2]
+alpha_CI_upper <- summary(ADBE_model)$coefficients[1,1] + 2* summary(ADBE_model)$coefficients[1,2]
+beta_CI_lower <- summary(ADBE_model)$coefficients[2,1] - 2* summary(ADBE_model)$coefficients[2,2]
+beta_CI_upper <- summary(ADBE_model)$coefficients[2,1] + 2* summary(ADBE_model)$coefficients[2,2]
+cat("\n")
+cat("95% CI of alpha for ADBE: ",alpha_CI_lower,alpha_CI_upper)
+cat("\n")
+cat("95% CI of beta for ADBE: ",beta_CI_lower,beta_CI_upper)
+```
+```{r}
+stockpremium <- (stock$ADP - sp500ret$X3mTCM)
+ADP_model <- lm(stockpremium~sp500ret$risk_premium)
+sharpe = mean(stockpremium) / sqrt(var(stockpremium))
+sharpe_CI_lower = sharpe-z.half.alpha*sqrt((1+(1/2)*sharpe**2)/156)
+sharpe_CI_upper = sharpe+z.half.alpha*sqrt((1+(1/2)*sharpe**2)/156)
+cat("sharpe 95% CI for ADP: ",sharpe_CI_lower,sharpe_CI_upper)
+cat("\n")
+treynor = mean(stockpremium)/summary(ADP_model)$coefficients[2,1]
+treynor_CI_lower = treynor-z.half.alpha*sqrt((1+(1/2)*treynor**2)/156)
+treynor_CI_upper = treynor+z.half.alpha*sqrt((1+(1/2)*treynor**2)/156)
+cat("treynor 95% CI for ADP: ",treynor_CI_lower,treynor_CI_upper)
+alpha_CI_lower <- summary(ADP_model)$coefficients[1,1] - 2* summary(ADP_model)$coefficients[1,2]
+alpha_CI_upper <- summary(ADP_model)$coefficients[1,1] + 2* summary(ADP_model)$coefficients[1,2]
+beta_CI_lower <- summary(ADP_model)$coefficients[2,1] - 2* summary(ADP_model)$coefficients[2,2]
+beta_CI_upper <- summary(ADP_model)$coefficients[2,1] + 2* summary(ADP_model)$coefficients[2,2]
+cat("\n")
+cat("95% CI of alpha for ADP: ",alpha_CI_lower,alpha_CI_upper)
+cat("\n")
+cat("95% CI of beta for ADP: ",beta_CI_lower,beta_CI_upper)
+```
+```{r}
+stockpremium <- (stock$AMD - sp500ret$X3mTCM)
+AMD_model <- lm(stockpremium~sp500ret$risk_premium)
+sharpe = mean(stockpremium) / sqrt(var(stockpremium))
+sharpe_CI_lower = sharpe-z.half.alpha*sqrt((1+(1/2)*sharpe**2)/156)
+sharpe_CI_upper = sharpe+z.half.alpha*sqrt((1+(1/2)*sharpe**2)/156)
+cat("sharpe 95% CI for AMD: ",sharpe_CI_lower,sharpe_CI_upper)
+cat("\n")
+treynor = mean(stockpremium)/summary(AMD_model)$coefficients[2,1]
+treynor_CI_lower = treynor-z.half.alpha*sqrt((1+(1/2)*treynor**2)/156)
+treynor_CI_upper = treynor+z.half.alpha*sqrt((1+(1/2)*treynor**2)/156)
+cat("treynor 95% CI for AMD: ",treynor_CI_lower,treynor_CI_upper)
+alpha_CI_lower <- summary(AMD_model)$coefficients[1,1] - 2* summary(AMD_model)$coefficients[1,2]
+alpha_CI_upper <- summary(AMD_model)$coefficients[1,1] + 2* summary(AMD_model)$coefficients[1,2]
+beta_CI_lower <- summary(AMD_model)$coefficients[2,1] - 2* summary(AMD_model)$coefficients[2,2]
+beta_CI_upper <- summary(AMD_model)$coefficients[2,1] + 2* summary(AMD_model)$coefficients[2,2]
+cat("\n")
+cat("95% CI of alpha for AMD: ",alpha_CI_lower,alpha_CI_upper)
+cat("\n")
+cat("95% CI of beta for AMD: ",beta_CI_lower,beta_CI_upper)
+```
+```{r}
+stockpremium <- (stock$DELL - sp500ret$X3mTCM)
+DELL_model <- lm(stockpremium~sp500ret$risk_premium)
+sharpe = mean(stockpremium) / sqrt(var(stockpremium))
+sharpe_CI_lower = sharpe-z.half.alpha*sqrt((1+(1/2)*sharpe**2)/156)
+sharpe_CI_upper = sharpe+z.half.alpha*sqrt((1+(1/2)*sharpe**2)/156)
+cat("sharpe 95% CI for DELL: ",sharpe_CI_lower,sharpe_CI_upper)
+cat("\n")
+treynor = mean(stockpremium)/summary(DELL_model)$coefficients[2,1]
+treynor_CI_lower = treynor-z.half.alpha*sqrt((1+(1/2)*treynor**2)/156)
+treynor_CI_upper = treynor+z.half.alpha*sqrt((1+(1/2)*treynor**2)/156)
+cat("treynor 95% CI for DELL: ",treynor_CI_lower,treynor_CI_upper)
+alpha_CI_lower <- summary(DELL_model)$coefficients[1,1] - 2* summary(DELL_model)$coefficients[1,2]
+alpha_CI_upper <- summary(DELL_model)$coefficients[1,1] + 2* summary(DELL_model)$coefficients[1,2]
+beta_CI_lower <- summary(DELL_model)$coefficients[2,1] - 2* summary(DELL_model)$coefficients[2,2]
+beta_CI_upper <- summary(DELL_model)$coefficients[2,1] + 2* summary(DELL_model)$coefficients[2,2]
+cat("\n")
+cat("95% CI of alpha for DELL: ",alpha_CI_lower,alpha_CI_upper)
+cat("\n")
+cat("95% CI of beta for DELL: ",beta_CI_lower,beta_CI_upper)
+```
+```{r}
+stockpremium <- (stock$GTW - sp500ret$X3mTCM)
+GTW_model <- lm(stockpremium~sp500ret$risk_premium)
+sharpe = mean(stockpremium) / sqrt(var(stockpremium))
+sharpe_CI_lower = sharpe-z.half.alpha*sqrt((1+(1/2)*sharpe**2)/156)
+sharpe_CI_upper = sharpe+z.half.alpha*sqrt((1+(1/2)*sharpe**2)/156)
+cat("sharpe 95% CI for GTW: ",sharpe_CI_lower,sharpe_CI_upper)
+cat("\n")
+treynor = mean(stockpremium)/summary(GTW_model)$coefficients[2,1]
+treynor_CI_lower = treynor-z.half.alpha*sqrt((1+(1/2)*treynor**2)/156)
+treynor_CI_upper = treynor+z.half.alpha*sqrt((1+(1/2)*treynor**2)/156)
+cat("treynor 95% CI for GTW: ",treynor_CI_lower,treynor_CI_upper)
+alpha_CI_lower <- summary(GTW_model)$coefficients[1,1] - 2* summary(GTW_model)$coefficients[1,2]
+alpha_CI_upper <- summary(GTW_model)$coefficients[1,1] + 2* summary(GTW_model)$coefficients[1,2]
+beta_CI_lower <- summary(GTW_model)$coefficients[2,1] - 2* summary(GTW_model)$coefficients[2,2]
+beta_CI_upper <- summary(GTW_model)$coefficients[2,1] + 2* summary(GTW_model)$coefficients[2,2]
+cat("\n")
+cat("95% CI of alpha for GTW: ",alpha_CI_lower,alpha_CI_upper)
+cat("\n")
+cat("95% CI of beta for GTW: ",beta_CI_lower,beta_CI_upper)
+```
+```{r}
+stockpremium <- (stock$HP - sp500ret$X3mTCM)
+HP_model <- lm(stockpremium~sp500ret$risk_premium)
+sharpe = mean(stockpremium) / sqrt(var(stockpremium))
+sharpe_CI_lower = sharpe-z.half.alpha*sqrt((1+(1/2)*sharpe**2)/156)
+sharpe_CI_upper = sharpe+z.half.alpha*sqrt((1+(1/2)*sharpe**2)/156)
+cat("sharpe 95% CI for HP: ",sharpe_CI_lower,sharpe_CI_upper)
+cat("\n")
+treynor = mean(stockpremium)/summary(HP_model)$coefficients[2,1]
+treynor_CI_lower = treynor-z.half.alpha*sqrt((1+(1/2)*treynor**2)/156)
+treynor_CI_upper = treynor+z.half.alpha*sqrt((1+(1/2)*treynor**2)/156)
+cat("treynor 95% CI for HP: ",treynor_CI_lower,treynor_CI_upper)
+alpha_CI_lower <- summary(HP_model)$coefficients[1,1] - 2* summary(HP_model)$coefficients[1,2]
+alpha_CI_upper <- summary(HP_model)$coefficients[1,1] + 2* summary(HP_model)$coefficients[1,2]
+beta_CI_lower <- summary(HP_model)$coefficients[2,1] - 2* summary(HP_model)$coefficients[2,2]
+beta_CI_upper <- summary(HP_model)$coefficients[2,1] + 2* summary(HP_model)$coefficients[2,2]
+cat("\n")
+cat("95% CI of alpha for HP: ",alpha_CI_lower,alpha_CI_upper)
+cat("\n")
+cat("95% CI of beta for HP: ",beta_CI_lower,beta_CI_upper)
+```
+```{r}
+stockpremium <- (stock$IBM - sp500ret$X3mTCM)
+IBM_model <- lm(stockpremium~sp500ret$risk_premium)
+sharpe = mean(stockpremium) / sqrt(var(stockpremium))
+sharpe_CI_lower = sharpe-z.half.alpha*sqrt((1+(1/2)*sharpe**2)/156)
+sharpe_CI_upper = sharpe+z.half.alpha*sqrt((1+(1/2)*sharpe**2)/156)
+cat("sharpe 95% CI for IBM: ",sharpe_CI_lower,sharpe_CI_upper)
+cat("\n")
+treynor = mean(stockpremium)/summary(IBM_model)$coefficients[2,1]
+treynor_CI_lower = treynor-z.half.alpha*sqrt((1+(1/2)*treynor**2)/156)
+treynor_CI_upper = treynor+z.half.alpha*sqrt((1+(1/2)*treynor**2)/156)
+cat("treynor 95% CI for IBM: ",treynor_CI_lower,treynor_CI_upper)
+alpha_CI_lower <- summary(IBM_model)$coefficients[1,1] - 2* summary(IBM_model)$coefficients[1,2]
+alpha_CI_upper <- summary(IBM_model)$coefficients[1,1] + 2* summary(IBM_model)$coefficients[1,2]
+beta_CI_lower <- summary(IBM_model)$coefficients[2,1] - 2* summary(IBM_model)$coefficients[2,2]
+beta_CI_upper <- summary(IBM_model)$coefficients[2,1] + 2* summary(IBM_model)$coefficients[2,2]
+cat("\n")
+cat("95% CI of alpha for IBM: ",alpha_CI_lower,alpha_CI_upper)
+cat("\n")
+cat("95% CI of beta for IBM: ",beta_CI_lower,beta_CI_upper)
+```
+```{r}
+stockpremium <- (stock$MSFT - sp500ret$X3mTCM)
+MSFT_model <- lm(stockpremium~sp500ret$risk_premium)
+sharpe = mean(stockpremium) / sqrt(var(stockpremium))
+sharpe_CI_lower = sharpe-z.half.alpha*sqrt((1+(1/2)*sharpe**2)/156)
+sharpe_CI_upper = sharpe+z.half.alpha*sqrt((1+(1/2)*sharpe**2)/156)
+cat("sharpe 95% CI for MSFT: ",sharpe_CI_lower,sharpe_CI_upper)
+cat("\n")
+treynor = mean(stockpremium)/summary(MSFT_model)$coefficients[2,1]
+treynor_CI_lower = treynor-z.half.alpha*sqrt((1+(1/2)*treynor**2)/156)
+treynor_CI_upper = treynor+z.half.alpha*sqrt((1+(1/2)*treynor**2)/156)
+cat("treynor 95% CI for MSFT: ",treynor_CI_lower,treynor_CI_upper)
+alpha_CI_lower <- summary(MSFT_model)$coefficients[1,1] - 2* summary(MSFT_model)$coefficients[1,2]
+alpha_CI_upper <- summary(MSFT_model)$coefficients[1,1] + 2* summary(MSFT_model)$coefficients[1,2]
+beta_CI_lower <- summary(MSFT_model)$coefficients[2,1] - 2* summary(MSFT_model)$coefficients[2,2]
+beta_CI_upper <- summary(MSFT_model)$coefficients[2,1] + 2* summary(MSFT_model)$coefficients[2,2]
+cat("\n")
+cat("95% CI of alpha for MSFT: ",alpha_CI_lower,alpha_CI_upper)
+cat("\n")
+cat("95% CI of beta for MSFT: ",beta_CI_lower,beta_CI_upper)
+```
+```{r}
+stockpremium <- (stock$ORCL - sp500ret$X3mTCM)
+ORCL_model <- lm(stockpremium~sp500ret$risk_premium)
+sharpe = mean(stockpremium) / sqrt(var(stockpremium))
+sharpe_CI_lower = sharpe-z.half.alpha*sqrt((1+(1/2)*sharpe**2)/156)
+sharpe_CI_upper = sharpe+z.half.alpha*sqrt((1+(1/2)*sharpe**2)/156)
+cat("sharpe 95% CI for ORCL: ",sharpe_CI_lower,sharpe_CI_upper)
+cat("\n")
+treynor = mean(stockpremium)/summary(ORCL_model)$coefficients[2,1]
+treynor_CI_lower = treynor-z.half.alpha*sqrt((1+(1/2)*treynor**2)/156)
+treynor_CI_upper = treynor+z.half.alpha*sqrt((1+(1/2)*treynor**2)/156)
+cat("treynor 95% CI for ORCL: ",treynor_CI_lower,treynor_CI_upper)
+alpha_CI_lower <- summary(ORCL_model)$coefficients[1,1] - 2* summary(ORCL_model)$coefficients[1,2]
+alpha_CI_upper <- summary(ORCL_model)$coefficients[1,1] + 2* summary(ORCL_model)$coefficients[1,2]
+beta_CI_lower <- summary(ORCL_model)$coefficients[2,1] - 2* summary(ORCL_model)$coefficients[2,2]
+beta_CI_upper <- summary(ORCL_model)$coefficients[2,1] + 2* summary(ORCL_model)$coefficients[2,2]
+cat("\n")
+cat("95% CI of alpha for ORCL: ",alpha_CI_lower,alpha_CI_upper)
+cat("\n")
+cat("95% CI of beta for ORCL: ",beta_CI_lower,beta_CI_upper)
+```
+3.6 (f) model fitting--Testing for the null hypothesis that beta1 = beta2
+formula: Y1 = beta1*x1 + beta2*x2 + epsilon
+            = r*x1 + beta2*(x1+x2) + epsilon where r = beta1 - beta2
+fix t0 = 86 (February 2001) for 3.6.f
+```{r}
+#Rme = rm - rf, the excess returns of the S&P 500 index
+Rme <- sp500ret$risk_premium #excess of the S&P 500 index
+x1 = Rme
+x1[87:156] <- 0
+x2 = Rme
+x2[0:86] <- 0
+
+AAPL_Rte <- stock$AAPL-sp500ret$X3mTCM #excess of the stock AAPL
+AAPL_mod <- lm(stock$AAPL-sp500ret$X3mTCM ~ x1 + Rme -1)
+cat("p value for null hypo beta1=beta2 for AAPL: ",summary(AAPL_mod)$coefficients[1,4])
+cat("\n")
+cat("Hence fail to reject the null hypothesis.")
+```
+```{r}
+ADBE_Rte <- stock$ADBE-sp500ret$X3mTCM #excess of the stock 
+ADBE_mod <- lm(stock$ADBE-sp500ret$X3mTCM ~ x1 + Rme -1)
+cat("p value for null hypo beta1=beta2 for ADBE: ",summary(ADBE_mod)$coefficients[1,4])
+cat("\n")
+cat("Hence fail to reject the null hypothesis.")
+```
+```{r}
+ADP_Rte <- stock$ADP-sp500ret$X3mTCM #excess of the stock 
+ADP_mod <- lm(stock$ADP-sp500ret$X3mTCM ~ x1 + Rme -1)
+cat("p value for null hypo beta1=beta2 for ADP: ",summary(ADP_mod)$coefficients[1,4])
+cat("\n")
+cat("Hence reject the null hypothesis.")
+```
+```{r}
+AMD_Rte <- stock$AMD-sp500ret$X3mTCM #excess of the stock 
+AMD_mod <- lm(stock$AMD-sp500ret$X3mTCM ~ x1 + Rme -1)
+cat("p value for null hypo beta1=beta2 for AMD: ",summary(AMD_mod)$coefficients[1,4])
+cat("\n")
+cat("Hence reject the null hypothesis.")
+```
+```{r}
+DELL_Rte <- stock$DELL-sp500ret$X3mTCM #excess of the stock 
+DELL_mod <- lm(stock$DELL-sp500ret$X3mTCM ~ x1 + Rme -1)
+cat("p value for null hypo beta1=beta2 for DELL: ",summary(DELL_mod)$coefficients[1,4])
+cat("\n")
+cat("Hence reject the null hypothesis.")
+```
+```{r}
+GTW_Rte <- stock$GTW-sp500ret$X3mTCM #excess of the stock 
+GTW_mod <- lm(stock$GTW-sp500ret$X3mTCM ~ x1 + Rme -1)
+cat("p value for null hypo beta1=beta2 for GTW: ",summary(GTW_mod)$coefficients[1,4])
+cat("\n")
+cat("Hence fail to reject the null hypothesis.")
+```
+```{r}
+HP_Rte <- stock$HP-sp500ret$X3mTCM #excess of the stock 
+HP_mod <- lm(stock$HP-sp500ret$X3mTCM ~ x1 + Rme -1)
+cat("p value for null hypo beta1=beta2 for HP: ",summary(HP_mod)$coefficients[1,4])
+cat("\n")
+cat("Hence fail to reject the null hypothesis.")
+```
+```{r}
+IBM_Rte <- stock$IBM-sp500ret$X3mTCM #excess of the stock 
+IBM_mod <- lm(stock$IBM-sp500ret$X3mTCM ~ x1 + Rme -1)
+cat("p value for null hypo beta1=beta2 for IBM: ",summary(IBM_mod)$coefficients[1,4])
+cat("\n")
+cat("Hence fail to reject the null hypothesis.")
+```
+```{r}
+MSFT_Rte <- stock$MSFT-sp500ret$X3mTCM #excess of the stock 
+MSFT_mod <- lm(stock$MSFT-sp500ret$X3mTCM ~ x1 + Rme -1)
+cat("p value for null hypo beta1=beta2 for MSFT: ",summary(MSFT_mod)$coefficients[1,4])
+cat("\n")
+cat("Hence fail to reject the null hypothesis.")
+```
+```{r}
+ORCL_Rte <- stock$ORCL-sp500ret$X3mTCM #excess of the stock 
+ORCL_mod <- lm(stock$ORCL-sp500ret$X3mTCM ~ x1 + Rme -1)
+cat("p value for null hypo beta1=beta2 for ORCL: ",summary(ORCL_mod)$coefficients[1,4])
+cat("\n")
+cat("Hence fail to reject the null hypothesis.")
+```
+3.6 (g) Estimate t0 by the LS criterion that minimizes the residual sum of squares (RSS) over (beta1, beta2, t0)
+```{r}
+sp500ret$risk_premium <- sp500ret$sp500 - sp500ret$X3mTCM
+Rme <- sp500ret$risk_premium #excess of the S&P 500 index
+x1 = Rme
+x2 = Rme
+minimum = 100
+minimal_t0 = 0
+
+for (t in 1:156){
+  if(t==1){
+    AAPL_mod <- lm(stock$AAPL-sp500ret$X3mTCM ~ x1 + x2 -1)
+  } else {
+    x2[1:(t-1)] <- 0
+    x1[t:156] <- 0
+    AAPL_mod <- lm(stock$AAPL-sp500ret$X3mTCM ~ x1 + x2 -1)
+  }
+  SSR = anova(AAPL_mod)["Residuals","Sum Sq"]
+
+  if(SSR<minimum){
+    minimum = SSR
+    minimal_t0 = t
+  }
+}
+minimum
+minimal_t0
+```
+```{r}
+sp500ret$risk_premium <- sp500ret$sp500 - sp500ret$X3mTCM
+Rme <- sp500ret$risk_premium #excess of the S&P 500 index
+x1 = Rme
+x2 = Rme
+minimum = 100
+minimal_t0 = 0
+
+for (t in 1:156){
+  if(t==1){
+    ADBE_mod <- lm(stock$ADBE-sp500ret$X3mTCM ~ x1 + x2 -1)
+  } else {
+    x2[1:(t-1)] <- 0
+    x1[t:156] <- 0
+    ADBE_mod <- lm(stock$ADBE-sp500ret$X3mTCM ~ x1 + x2 -1)
+  }
+  SSR = anova(ADBE_mod)["Residuals","Sum Sq"]
+
+  if(SSR<minimum){
+    minimum = SSR
+    minimal_t0 = t
+  }
+}
+minimum
+minimal_t0
+```
+```{r}
+sp500ret$risk_premium <- sp500ret$sp500 - sp500ret$X3mTCM
+Rme <- sp500ret$risk_premium #excess of the S&P 500 index
+x1 = Rme
+x2 = Rme
+minimum = 100
+minimal_t0 = 0
+
+for (t in 1:156){
+  if(t==1){
+    ADP_mod <- lm(stock$ADP-sp500ret$X3mTCM ~ x1 + x2 -1)
+  } else {
+    x2[1:(t-1)] <- 0
+    x1[t:156] <- 0
+    ADP_mod <- lm(stock$ADP-sp500ret$X3mTCM ~ x1 + x2 -1)
+  }
+  SSR = anova(ADP_mod)["Residuals","Sum Sq"]
+
+  if(SSR<minimum){
+    minimum = SSR
+    minimal_t0 = t
+  }
+}
+minimum
+minimal_t0
+```
+```{r}
+sp500ret$risk_premium <- sp500ret$sp500 - sp500ret$X3mTCM
+Rme <- sp500ret$risk_premium #excess of the S&P 500 index
+x1 = Rme
+x2 = Rme
+minimum = 100
+minimal_t0 = 0
+
+for (t in 1:156){
+  if(t==1){
+    AMD_mod <- lm(stock$AMD-sp500ret$X3mTCM ~ x1 + x2 -1)
+  } else {
+    x2[1:(t-1)] <- 0
+    x1[t:156] <- 0
+    AMD_mod <- lm(stock$AMD-sp500ret$X3mTCM ~ x1 + x2 -1)
+  }
+  SSR = anova(AMD_mod)["Residuals","Sum Sq"]
+
+  if(SSR<minimum){
+    minimum = SSR
+    minimal_t0 = t
+  }
+}
+minimum
+minimal_t0
+```
+```{r}
+sp500ret$risk_premium <- sp500ret$sp500 - sp500ret$X3mTCM
+Rme <- sp500ret$risk_premium #excess of the S&P 500 index
+x1 = Rme
+x2 = Rme
+minimum = 100
+minimal_t0 = 0
+
+for (t in 1:156){
+  if(t==1){
+    DELL_mod <- lm(stock$DELL-sp500ret$X3mTCM ~ x1 + x2 -1)
+  } else {
+    x2[1:(t-1)] <- 0
+    x1[t:156] <- 0
+    DELL_mod <- lm(stock$DELL-sp500ret$X3mTCM ~ x1 + x2 -1)
+  }
+  SSR = anova(DELL_mod)["Residuals","Sum Sq"]
+
+  if(SSR<minimum){
+    minimum = SSR
+    minimal_t0 = t
+  }
+}
+minimum
+minimal_t0
+```
+```{r}
+sp500ret$risk_premium <- sp500ret$sp500 - sp500ret$X3mTCM
+Rme <- sp500ret$risk_premium #excess of the S&P 500 index
+x1 = Rme
+x2 = Rme
+minimum = 100
+minimal_t0 = 0
+
+for (t in 1:156){
+  if(t==1){
+    GTW_mod <- lm(stock$GTW-sp500ret$X3mTCM ~ x1 + x2 -1)
+  } else {
+    x2[1:(t-1)] <- 0
+    x1[t:156] <- 0
+    GTW_mod <- lm(stock$GTW-sp500ret$X3mTCM ~ x1 + x2 -1)
+  }
+  SSR = anova(GTW_mod)["Residuals","Sum Sq"]
+
+  if(SSR<minimum){
+    minimum = SSR
+    minimal_t0 = t
+  }
+}
+minimum
+minimal_t0
+```
+```{r}
+sp500ret$risk_premium <- sp500ret$sp500 - sp500ret$X3mTCM
+Rme <- sp500ret$risk_premium #excess of the S&P 500 index
+x1 = Rme
+x2 = Rme
+minimum = 100
+minimal_t0 = 0
+
+for (t in 1:156){
+  if(t==1){
+    HP_mod <- lm(stock$HP-sp500ret$X3mTCM ~ x1 + x2 -1)
+  } else {
+    x2[1:(t-1)] <- 0
+    x1[t:156] <- 0
+    HP_mod <- lm(stock$HP-sp500ret$X3mTCM ~ x1 + x2 -1)
+  }
+  SSR = anova(HP_mod)["Residuals","Sum Sq"]
+
+  if(SSR<minimum){
+    minimum = SSR
+    minimal_t0 = t
+  }
+}
+minimum
+minimal_t0
+```
+```{r}
+sp500ret$risk_premium <- sp500ret$sp500 - sp500ret$X3mTCM
+Rme <- sp500ret$risk_premium #excess of the S&P 500 index
+x1 = Rme
+x2 = Rme
+minimum = 100
+minimal_t0 = 0
+
+for (t in 1:156){
+  if(t==1){
+    IBM_mod <- lm(stock$IBM-sp500ret$X3mTCM ~ x1 + x2 -1)
+  } else {
+    x2[1:(t-1)] <- 0
+    x1[t:156] <- 0
+    IBM_mod <- lm(stock$IBM-sp500ret$X3mTCM ~ x1 + x2 -1)
+  }
+  SSR = anova(IBM_mod)["Residuals","Sum Sq"]
+
+  if(SSR<minimum){
+    minimum = SSR
+    minimal_t0 = t
+  }
+}
+minimum
+minimal_t0
+```
+```{r}
+sp500ret$risk_premium <- sp500ret$sp500 - sp500ret$X3mTCM
+Rme <- sp500ret$risk_premium #excess of the S&P 500 index
+x1 = Rme
+x2 = Rme
+minimum = 100
+minimal_t0 = 0
+
+for (t in 1:156){
+  if(t==1){
+    MSFT_mod <- lm(stock$MSFT-sp500ret$X3mTCM ~ x1 + x2 -1)
+  } else {
+    x2[1:(t-1)] <- 0
+    x1[t:156] <- 0
+    MSFT_mod <- lm(stock$MSFT-sp500ret$X3mTCM ~ x1 + x2 -1)
+  }
+  SSR = anova(MSFT_mod)["Residuals","Sum Sq"]
+
+  if(SSR<minimum){
+    minimum = SSR
+    minimal_t0 = t
+  }
+}
+minimum
+minimal_t0
+```
+```{r}
+sp500ret$risk_premium <- sp500ret$sp500 - sp500ret$X3mTCM
+Rme <- sp500ret$risk_premium #excess of the S&P 500 index
+x1 = Rme
+x2 = Rme
+minimum = 100
+minimal_t0 = 0
+
+for (t in 1:156){
+  if(t==1){
+    ORCL_mod <- lm(stock$ORCL-sp500ret$X3mTCM ~ x1 + x2 -1)
+  } else {
+    x2[1:(t-1)] <- 0
+    x1[t:156] <- 0
+    ORCL_mod <- lm(stock$ORCL-sp500ret$X3mTCM ~ x1 + x2 -1)
+  }
+  SSR = anova(ORCL_mod)["Residuals","Sum Sq"]
+
+  if(SSR<minimum){
+    minimum = SSR
+    minimal_t0 = t
+  }
+}
+minimum
+minimal_t0
+```
+

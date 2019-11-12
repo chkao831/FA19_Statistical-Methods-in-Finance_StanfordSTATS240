@@ -1,0 +1,143 @@
+Author: Chih-Hsuan (Carolyn) Kao;
+Date: Nov 10th, 2019;
+Title: STATS 240 HW2 Autumn19-20
+
+Problem 3.5 part (a)
+```{r}
+stock = read.table("m_logret_10stocks.txt", header = TRUE)
+stock <- stock[2:length(stock)] #strip out date since unnecessary
+stock <- stock[-c(157,158,159), ] #strip out blank last rows
+
+sample_mu = colMeans(stock)
+sample_mu
+```
+
+```{r}
+
+sample_cov = cov(stock)
+sample_cov
+one_vec = matrix(1, ncol(stock), 1)
+```
+Problem 3.5 part (b)
+```{r}
+library(MASS)
+
+A = t(sample_mu)%*%ginv(sample_cov)%*%one_vec
+B = t(sample_mu)%*%ginv(sample_cov)%*%sample_mu
+C = t(one_vec)%*%ginv(sample_cov)%*%one_vec
+D = B%*%C - A%*%A
+
+a = A[1,1]
+b = B[1,1]
+c = C[1,1]
+d = D[1,1]
+
+eff_weight = ( b*ginv(sample_cov)%*%one_vec - a*ginv(sample_cov)%*%sample_mu + 0.003*(c*ginv(sample_cov)%*%sample_mu - a*ginv(sample_cov)%*%one_vec) )/d
+eff_weight
+```
+Problem 3.5 part (c)
+```{r}
+library(MASS)
+
+calculate_weight <- function(data,term){
+  
+  dat <- data[term,]
+  one_vec <- matrix(1, ncol(dat), 1)
+  sample_mu = colMeans(dat)
+  sample_cov = cov(dat)
+  A = t(sample_mu)%*%ginv(sample_cov)%*%one_vec
+  B = t(sample_mu)%*%ginv(sample_cov)%*%sample_mu
+  C = t(one_vec)%*%ginv(sample_cov)%*%one_vec
+  D = B%*%C - A%*%A
+
+  a = A[1,1]
+  b = B[1,1]
+  c = C[1,1]
+  d = D[1,1]
+
+  eff_weight = ( b*ginv(sample_cov)%*%one_vec - a*ginv(sample_cov)%*%sample_mu + 0.003*(c*ginv(sample_cov)%*%sample_mu - a*ginv(sample_cov)%*%one_vec) )/d
+  return(eff_weight)
+}
+
+library(boot)
+boot_weight = boot(stock,calculate_weight,R=500)
+#boot_weight
+colMeans(boot_weight$t)
+
+```
+Problem 3.6 part (b)
+```{r}
+sp500ret = read.table("m_sp500ret_3mtcm.txt",
+                   skip = 1,
+                   sep="\t",
+                   header = TRUE,
+                   fill=FALSE, 
+                   strip.white=TRUE)
+sp500ret$X3mTCM <- sp500ret$X3mTCM/1200 #scale the risk free
+sp500ret$risk_premium <- sp500ret$sp500 - sp500ret$X3mTCM
+
+calculate_ten <- function(data,term){
+  
+  dat <- data[term]
+  
+  Y = dat - sp500ret$X3mTCM
+  CAPM = lm( Y~ sp500ret$risk_premium )
+  alpha = CAPM$coefficients[1]
+  beta = CAPM$coefficients[2]
+  sharpe = mean(Y)/sd(Y)
+  treynor = mean(Y)/beta
+  
+  vec = c(alpha,beta,sharpe,treynor)
+
+  return(vec)
+}
+
+for (i in (1:10)){
+  boot_result = boot(stock[,i],calculate_ten,R=500)
+  print(boot_result)
+}
+```
+Problem 3.6 part (c)
+```{r}
+stocklist <- list("AAPL","ADBE","ADP","AMD","DELL","GTW","HP","IBM","MSFT","ORCL")
+
+for (i in (1:10)){
+  Y = as.matrix(stock[,i])-sp500ret$X3mTCM
+  X = sp500ret$risk_premium
+  model <- lm(Y~X)
+  print(stocklist[[i]])
+  cat("p value of alpha estimate:",summary(model)$coefficients[1,4])
+  cat("\n")
+  #print(summary(model)$coefficients[1,4])
+  if(summary(model)$coefficients[1,4] > 0.05){
+    print("fail to reject null hypothesis that alpha is zero at 95% confidence level")
+  } else {
+    print("reject null hypothesis that alpha is zero at 95% confidence level")
+  }
+  cat("\n")
+}
+```
+Problem 3.6 part (d)
+```{r}
+unlist = as.matrix(stock[,1:10]-sp500ret$X3mTCM)
+model <- lm(unlist~sp500ret$risk_premium)
+alpha <- coef(model)[1,]
+beta <- coef(model)[2,]
+samplesize <- dim(unlist)[1]
+stocksize <- dim(unlist)[2]
+residual <- unlist-alpha-rep(1,samplesize)%*%t(alpha)-((sp500ret$risk_premium)%*%t(beta))
+V <- t(residual)%*%residual/samplesize
+Fval <- ((samplesize-stocksize-1)/stocksize)*alpha%*%ginv(V)%*%alpha/(1+mean(sp500ret$risk_premium)^2/mean((sp500ret$risk_premium-mean(sp500ret$risk_premium))^2))
+lower_interval <- qf(0.025,stocksize,samplesize-stocksize-1)
+upper_interval <- qf(0.975,stocksize,samplesize-stocksize-1)
+
+cat("F-value is ",Fval)
+cat("\n")
+cat(" lower CI is: ",lower_interval)
+cat(" upper CI is: ",upper_interval)
+cat("\n")
+cat("F value lies between CI, so we fail to reject the null hypothesis that alpha equals zero at 95% confidence level using the regression model (3.24)")
+
+```
+
+
