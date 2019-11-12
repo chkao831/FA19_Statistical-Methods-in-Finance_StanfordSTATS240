@@ -1,8 +1,10 @@
 Author: Chih-Hsuan (Carolyn) Kao;
+Email: chkao831@stanford.edu;
 Date: Nov 10th, 2019;
-Title: STATS 240 HW2 Autumn19-20
+Title: STATS 240 HW2 Autumn19-20; 
 
-Problem 3.5 part (a)
+Problem 3.5 part (a) 
+Compute the sample mean mu and the sample covariance matrix of the log returns
 ```{r}
 stock = read.table("m_logret_10stocks.txt", header = TRUE)
 stock <- stock[2:length(stock)] #strip out date since unnecessary
@@ -19,7 +21,10 @@ sample_cov
 one_vec = matrix(1, ncol(stock), 1)
 ```
 Problem 3.5 part (b)
+Assume monthly target return is 0.3% and short selling is allowed (weight can be negative),
+estimate the optimal portfolio weights
 ```{r}
+#reference: Textbook page 70 formula
 library(MASS)
 
 A = t(sample_mu)%*%ginv(sample_cov)%*%one_vec
@@ -33,9 +38,10 @@ c = C[1,1]
 d = D[1,1]
 
 eff_weight = ( b*ginv(sample_cov)%*%one_vec - a*ginv(sample_cov)%*%sample_mu + 0.003*(c*ginv(sample_cov)%*%sample_mu - a*ginv(sample_cov)%*%one_vec) )/d
-eff_weight
+eff_weight #this is the optimal portfolio weight
 ```
 Problem 3.5 part (c)
+Using B=500 bootstrap samples for resampled weights from part (b)
 ```{r}
 library(MASS)
 
@@ -60,12 +66,14 @@ calculate_weight <- function(data,term){
 }
 
 library(boot)
+#boot(object, f=function(object), R=Number of bootstrap samples)
 boot_weight = boot(stock,calculate_weight,R=500)
 #boot_weight
 colMeans(boot_weight$t)
 
 ```
 Problem 3.6 part (b)
+Use bootstrap procedure to estimate standard errors of alpha, beta, Sharpe, and Treynor
 ```{r}
 sp500ret = read.table("m_sp500ret_3mtcm.txt",
                    skip = 1,
@@ -73,15 +81,17 @@ sp500ret = read.table("m_sp500ret_3mtcm.txt",
                    header = TRUE,
                    fill=FALSE, 
                    strip.white=TRUE)
-sp500ret$X3mTCM <- sp500ret$X3mTCM/1200 #scale the risk free
+sp500ret$X3mTCM <- sp500ret$X3mTCM/1200 #scale the risk free rate 
+#compute the market risk premium (excess return of market)
 sp500ret$risk_premium <- sp500ret$sp500 - sp500ret$X3mTCM
 
+#this function returns vector contains alpha, beta, sharpe, treynor for each stock
 calculate_ten <- function(data,term){
   
   dat <- data[term]
   
-  Y = dat - sp500ret$X3mTCM
-  CAPM = lm( Y~ sp500ret$risk_premium )
+  Y = dat - sp500ret$X3mTCM #Y is stock premium
+  CAPM = lm( Y~ sp500ret$risk_premium ) #stock premium~market premium
   alpha = CAPM$coefficients[1]
   beta = CAPM$coefficients[2]
   sharpe = mean(Y)/sd(Y)
@@ -93,22 +103,24 @@ calculate_ten <- function(data,term){
 }
 
 for (i in (1:10)){
+  #boot(object, f=function(object), R=Number of bootstrap samples)
   boot_result = boot(stock[,i],calculate_ten,R=500)
   print(boot_result)
 }
 ```
-Problem 3.6 part (c)
+Problem 3.6 part (c) Test for each stock the null hypothesis alpha = 0
 ```{r}
 stocklist <- list("AAPL","ADBE","ADP","AMD","DELL","GTW","HP","IBM","MSFT","ORCL")
 
 for (i in (1:10)){
   Y = as.matrix(stock[,i])-sp500ret$X3mTCM
   X = sp500ret$risk_premium
+  #Use linear regression on each stock
   model <- lm(Y~X)
   print(stocklist[[i]])
   cat("p value of alpha estimate:",summary(model)$coefficients[1,4])
   cat("\n")
-  #print(summary(model)$coefficients[1,4])
+  #perform hypothesis analysis at 95% confidence level
   if(summary(model)$coefficients[1,4] > 0.05){
     print("fail to reject null hypothesis that alpha is zero at 95% confidence level")
   } else {
@@ -117,27 +129,30 @@ for (i in (1:10)){
   cat("\n")
 }
 ```
-Problem 3.6 part (d)
+Problem 3.6 part (d) Use the regression model (3.24) to test null hypothesis alpha = 0
 ```{r}
-unlist = as.matrix(stock[,1:10]-sp500ret$X3mTCM)
-model <- lm(unlist~sp500ret$risk_premium)
+Y = as.matrix(stock[,1:10]-sp500ret$X3mTCM)
+X = sp500ret$risk_premium
+model <- lm(Y~X)
 alpha <- coef(model)[1,]
 beta <- coef(model)[2,]
-samplesize <- dim(unlist)[1]
-stocksize <- dim(unlist)[2]
-residual <- unlist-alpha-rep(1,samplesize)%*%t(alpha)-((sp500ret$risk_premium)%*%t(beta))
-V <- t(residual)%*%residual/samplesize
-Fval <- ((samplesize-stocksize-1)/stocksize)*alpha%*%ginv(V)%*%alpha/(1+mean(sp500ret$risk_premium)^2/mean((sp500ret$risk_premium-mean(sp500ret$risk_premium))^2))
-lower_interval <- qf(0.025,stocksize,samplesize-stocksize-1)
-upper_interval <- qf(0.975,stocksize,samplesize-stocksize-1)
+n <- dim(Y)[1]
+q <- dim(Y)[2]
+residual <- Y - alpha - X%*%t(beta)
+V <- t(residual)%*%residual/n
 
+Fval <- ((n-q-1)/q)*alpha%*%ginv(V)%*%alpha/(1+mean(X)^2/mean((X-mean(X))^2))
 cat("F-value is ",Fval)
+
+lower_CI <- qf(0.025,q,n-q-1)
+upper_CI <- qf(0.975,q,n-q-1)
+
 cat("\n")
-cat(" lower CI is: ",lower_interval)
-cat(" upper CI is: ",upper_interval)
+cat(" lower CI is: ",lower_CI)
+cat(" upper CI is: ",upper_CI)
 cat("\n")
 cat("F value lies between CI, so we fail to reject the null hypothesis that alpha equals zero at 95% confidence level using the regression model (3.24)")
-
 ```
+
 
 
