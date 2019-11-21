@@ -1,0 +1,193 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Author: Chih-Hsuan (Carolyn) Kao; 
+
+Email: chkao831@stanford.edu; 
+
+Date: Nov 22nd, 2019; 
+
+Title: STATS 240 HW3 Autumn19-20;
+
+Problem 5.8 part (a) Plot the time series and its ACF
+```{r}
+table = read.table("m_caus_ex.txt",
+                   skip = 2, 
+                   sep = "", 
+                   header = FALSE, 
+                   fill = FALSE, 
+                   strip.white = TRUE)
+data = ts(table["V2"],start = 1971, end = 2007, frequency = 12)
+plot(data,xlab = "Year", ylab= "CA/US Exchange Rate")
+
+```
+
+```{r}
+plot(data,xlab = "Year", ylab= "CA/US Exchange Rate")
+abline(v=seq(1971+6/12,2007,1),lty=2)
+```
+The time series plot of the original Canada/US exchange rate are presented above. From the time series plot, I don't see apparent seasonality judging from the fact that the patterns do not repeat with a fixed period of time. Indeed, when we decompose the data into monthly analysis, there're generally some trends within each window; but looking back at the big picture, there's no pattern within a fixed seasonality period. Hence, I would say there's no seasonal effects for the original data. 
+
+```{r}
+acf(data)
+```
+```{r}
+library(tseries)
+adf.test(data, alternative="stationary")
+```
+
+ACF is an auto-correlation function which gives us values of auto-correlation of the series with its lagged values. The slow decay of the autocorrelation function suggests the data follow a long-memory process. That is, the future values of the series are heavily affected by its past values. The duration of shocks is relatively persistent and influence the data several observations ahead. However, by my previous analysis, the heavy correlation with previous observations does not necessarily suggest there is seasonality pattern. In addition, I also perform an adf test above. The Augmented Dicky-Fuller (adf) test examines the null hypothesis that the data has a unit root. The p value is very big, suggesting we fail to reject the null hypothesis that the series has unit root. Having unit root generally implies "random walk with drift” and that a systematic pattern is unpredictable. To sum up, I would suppose that the mean and other indicators will change over time and that the process as a whole is not stationary. Hence, it might further suggest that first differences may be needed to render the data stationary. 
+
+```{r}
+plot(diff(data))
+abline(h=0,col="blue")
+
+```
+```{r}
+acf(diff(data))
+```
+
+
+Now I difference the data to get the differenced series, hoping to yield a somewhat stationary result. From the time series plot, although we can have some explosive pattern as we approach the very end, we can draw a flat line through the graph when diff=0. From the acf plot, I would say although the decay becomes very fast compared to the original undifferenced data, it does not decay fast enough--the first few lags still exceed the confidence band. Thus, I suppose the differenced series become approximately weakly stationary. By the definition of unit-root stationary in Section 5.2.4 in textbook, along with my previous analysis, I suggest that there is no apparent seasonal effect in the original series, and that we fail to reject that there is unit-root nonstationary patterns in the series. 
+
+Problem 5.8 part (b) Build time series to forecast the next 6 months from Dec 2006 
+```{r}
+# predictive accuracy
+library(forecast)
+
+par(mfrow=c(2,1))
+plot(forecast(auto.arima(ts(data,frequency=12),D=0),h=12)) #without seasonality--consistent with my part (a) analysis
+plot(forecast(auto.arima(ts(data,frequency=12),D=1),h=12)) #with seasonality
+
+checkresiduals(auto.arima(data),test=FALSE)
+```
+I used ARIMA(p,d,q) to select my p,d,q parameters to perform forecasting. I chose it mainly because in theory, ARIMA models are the most general class of models in order to forecast a time series which can be made to be somehow stationary by differencing as I've previously shown. The ARIMA model may choose to correct autocorrelated errors in a random walk model by suggesting a smoothing model. Since I observe that the time series is nonstationary, that is, it exhibits some noisy fluctuations, the random walk model does not perform as well as a moving average of past values. Rather than taking the most recent observation as the forecast of the next observation, it would sometimes be better to use an average of the last few observations in order to filter out the noise and more accurately estimate the local mean. 
+From the forecast, we can see that ARIMA modeling yields ARIMA(p,d,q) = (0,1,1) in this case, so it actually suggests an exponential smoothing approach in the forecast as I mentioned. As we check residuals of the forecasted series, admittedly the acf still exceeds beyond the confidence band several times, and the residual fluctuates greatly especially in latter years. Hence, although it's the most optimal forecasting model I would choose, the performance is far from perfect. 
+I've respectively plotted the forecast of ARIMA(0,1,1) without (above) and with (below) seasonality. Without forcing seasonality, the forecast of the next 6 months is approximately a flat line, which is not really pragmatic in my opinion. By forcing seasonality, even though it does not align with my analysis, the forecast becomes more reasonable to me. But on the basis of my analysis, I would stick to the case where seasonality is not enforced.  
+
+(c) Compute 6-month ahead based on model and compare with actual rate
+```{r}
+sub = window(data, start=c(1971,1), end=c(2006,6), frequency=12)
+subdata = ts(sub)
+
+#WITHOUT seasonality
+plot(forecast(auto.arima(ts(subdata,frequency=12),D=0),h=6))
+forecast(auto.arima(ts(subdata,frequency=12),D=0),h=6) #forecasted
+
+truevec = c(table[433, "V2"],
+            table[434, "V2"],
+            table[435, "V2"],
+            table[436, "V2"],
+            table[437, "V2"],
+            table[438, "V2"])
+
+estivec = as.numeric(forecast(auto.arima(ts(subdata,frequency=12),D=0),h=6)$mean) #true
+
+abs(truevec - estivec) #is the difference between forecasted and actual rates
+```
+The difference between actual exchange rates and my forecasted rates is printed to the console result above. 
+
+Problem 6.3 part(a) Compute the sample mean, variance, skewness, excess kurtosis and Ljung-Box statistics up to lag 10
+```{r}
+library(e1071)
+
+par(mfrow=c(1,1))
+d = read.table("w_logret_3stocks.txt",
+               sep="\t",
+               header = TRUE,
+               fill=FALSE, 
+               strip.white=TRUE)
+citi = c(d[,3])
+citi_mean <- mean(citi)
+citi_var <- var(citi)
+print(paste0("citi mean is ", citi_mean))
+print(paste0("citi var is ", citi_var))
+print(paste0("citi skewness is ", skewness(citi)))
+print(paste0("citi kurtosis is ", kurtosis(citi)))
+Box.test(citi, lag = 10, type = c("Ljung-Box"), fitdf = 0)
+
+PFE = c(d[,4])
+PFE_mean = mean(PFE)
+PFE_var = var(PFE)
+print(paste0("PFE mean is ", PFE_mean))
+print(paste0("PFE var is ", PFE_var))
+print(paste0("PFE skewness is ", skewness(PFE)))
+print(paste0("PFE kurtosis is ", kurtosis(PFE)))
+Box.test(PFE, lag = 10, type = c("Ljung-Box"), fitdf = 0)
+
+GM = c(d[,4])
+GM_mean = mean(GM)
+GM_var = var(GM)
+print(paste0("GM mean is ", GM_mean))
+print(paste0("GM var is ", GM_var))
+print(paste0("GM skewness is ", skewness(GM)))
+print(paste0("GM kurtosis is ", kurtosis(GM)))
+Box.test(GM, lag = 10, type = c("Ljung-Box"), fitdf = 0)
+
+```
+Problem 6.3 part(b) Plot histograms of returns and squared returns
+```{r}
+par(mfrow=c(1,2))
+hist(citi)
+hist(citi^2)
+```
+```{r}
+par(mfrow=c(1,2))
+hist(PFE)
+hist(PFE^2)
+```
+```{r}
+par(mfrow=c(1,2))
+hist(GM)
+hist(GM^2)
+```
+Problem 6.3 part(c) Perform the Jarque-Bera Test of the H0 =  Data have the skewness and kurtosis matching a normal distribution. If fail to reject, we fail to reject normality of data; if reject, assert no normality. 
+```{r}
+library(tseries)
+
+jarque.bera.test(citi)
+jarque.bera.test(PFE)
+jarque.bera.test(GM)
+```
+Hence, judging from the extremely small p-value for each of three stocks' weekly log returns, we reject the null hypothesis that the data matches a normal distribution using skewness and kurtosis coefficients. That is, the datas are not normal. 
+
+Problem 6.3 part(d) Plot ACF of return and squared return 
+```{r}
+
+par(mfrow=c(2,3))
+acf(citi)
+acf(PFE)
+acf(GM)
+acf(citi^2)
+acf(PFE^2)
+acf(GM^2)
+
+```
+The upper panel shows the ACF of the unsquared three return series. Looking solely at these three stocks in the market, I would suggest the efficient-market hypothesis (EMH) does hold, but not perfectly. This is because for several lags, the acf value still lies outside the confidence bands. If EMH perfectly held, correlations would all have stayed around 0 within the ACF band. 
+
+The lower panel shows the ACF of the squared three return series. Because we assume it's a mean zero quantity, the variance is equal to the expected value of squared data. This suggests we see longer memory of volatility in each of the three assets. 
+
+Problem 6.5 Build GARCH(1,1) model with standardized student-t
+```{r}
+ibmdat = read.table("ibm_w_logret.txt",
+                    sep="\t",
+                    header = TRUE,
+                    fill=FALSE, 
+                    strip.white=TRUE)[2]
+
+library(rugarch)
+
+spec_ibm <- ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1, 1)), 
+mean.model = list(armaOrder = c(0, 0), include.mean = TRUE, archm = FALSE, 
+archpow = 1, arfima = FALSE, external.regressors = NULL, archex = FALSE), 
+distribution.model = "std", start.pars = list(), fixed.pars = list())
+
+ugarchfit(data=ibmdat, spec=spec_ibm)
+
+```
+The shape parameter captures the unknown degrees of freedom parameter v. From the optimal parameter "shape" under the GARCH Model Fit, the estimate shape is 6.632252 with corresponding standard error of 0.888179. 
+
+
+
