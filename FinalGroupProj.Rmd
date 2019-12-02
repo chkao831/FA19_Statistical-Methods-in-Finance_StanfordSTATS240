@@ -1,0 +1,78 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+5.10 (a) Fit CAPM for the period (i) from Jan 1994 to June 1998 (ii) from Jul 1998 to Dec 2006 and estimate beta
+```{r}
+#create sp500ret table from the data that contains the monthly returns of market (S&P500) index 
+#and the monthly rates of the 3-month US T-bill of Federal Reserve (risk-free)
+sp500ret = read.table("m_sp500ret_3mtcm.txt",
+                   skip = 1,
+                   sep="\t",
+                   header = TRUE,
+                   fill=FALSE, 
+                   strip.white=TRUE)
+sp500ret$X3mTCM <- sp500ret$X3mTCM/1200 #scale the risk free
+#calculate the risk premium (Rm - Rf)
+sp500ret$risk_premium <- sp500ret$sp500 - sp500ret$X3mTCM
+
+#create stock table from data that contains monthly rate of ten stocks from Jan 1994 to Dec 2016
+stock = read.table("m_logret_10stocks.txt",
+               sep="\t",
+               header = TRUE,
+               fill=FALSE, 
+               strip.white=TRUE)
+stock <- stock[-c(157,158,159), ] #strip out blank last rows
+```
+
+```{r}
+#slice data frame by row for two parts
+sp500_pre = sp500ret[c(1:54),] 
+sp500_post = sp500ret[c(55:156),] 
+tenstock_pre = stock[c(1:54),] 
+tenstock_post = stock[c(55:156),] 
+```
+
+```{r}
+par(mar = c(3, 0.1, 3, 0.1))
+par(mfrow=c(2,5))
+prevector = c()
+for (i in (2:11)){
+  Y = tenstock_pre[,i] - sp500_pre$X3mTCM #Y is stock premium
+  CAPM = lm( Y~ sp500_pre$risk_premium ) #fit CAPM
+  #xlab="market Risk Premium", ylab="Stock Risk Premium"
+  plot(Y,sp500_pre$risk_premium)
+  abline(CAPM,col=2,lwd=3)
+  beta = CAPM$coefficients[2]
+  prevector[i-1] <- beta
+}
+
+
+postvector = c()
+for (i in (2:11)){
+  Y = tenstock_post[,i] - sp500_post$X3mTCM #Y is stock premium
+  CAPM = lm( Y~ sp500_post$risk_premium ) #fit CAPM
+  plot(Y,sp500_post$risk_premium)
+  abline(CAPM,col=2,lwd=3)
+  beta = CAPM$coefficients[2]
+  postvector[i-1] <- beta
+}
+```
+
+```{r}
+prevector
+postvector
+```
+The estimated betas significantly differ for the two specified periods. In practice, beta is the measure of the volatility, or systematic risk, of an individual stock in comparison to the unsystematic risk of the entire market. This results show that the systematic risks for the two periods respectively differ a lot. Statistically speaking, beta represents the slope of the line through a regression of data points from a stock's returns against those of the market. This can be seen from the plots illustrated above. 
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
